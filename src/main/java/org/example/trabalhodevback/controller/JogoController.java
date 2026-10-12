@@ -4,29 +4,34 @@ import org.example.trabalhodevback.model.Jogo;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.Optional;
+
+import org.example.trabalhodevback.repository.JogoRepository;
 
 @RestController
 @RequestMapping("/jogo")
 public class JogoController {
-    List<Jogo> jogos = new ArrayList<>();
+    private final JogoRepository repository;
+
+    public JogoController(JogoRepository repository) {
+        this.repository = repository;
+    }
 
     @GetMapping("/listar-jogos")
-    public ResponseEntity<List<Jogo>> listarJogo(){
-        return ResponseEntity.ok(jogos);
+    public ResponseEntity<List<Jogo>> listarJogo() {
+        return ResponseEntity.ok(repository.findAll());
     }
 
     @GetMapping("/buscar-por-id/{id}")
     public ResponseEntity<Jogo> buscarPorIdJogo(@PathVariable int id) {
-        for (Jogo jogo : jogos) {
-            if (id == jogo.id) {
-                return ResponseEntity.ok(jogo);
-            }
-        }
+        Optional<Jogo> jogo = repository.findById(id);
 
-        return ResponseEntity.notFound().build();
+        if (jogo.isPresent()) {
+            return ResponseEntity.ok(jogo.get());
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping("/buscar")
@@ -35,23 +40,7 @@ public class JogoController {
             @RequestParam(required = false) Double preco,
             @RequestParam(required = false) String genero) {
 
-        List<Jogo> resultado = new ArrayList<>();
-
-        for (Jogo jogo : jogos) {
-            if (nome != null && !jogo.nome.toLowerCase().startsWith(nome.toLowerCase())) {
-                continue;
-            }
-
-            if (genero != null && !jogo.genero.equalsIgnoreCase(genero)) {
-                continue;
-            }
-
-            if (preco != null && jogo.preco > preco) {
-                continue;
-            }
-
-            resultado.add(jogo);
-        }
+        List<Jogo> resultado = repository.buscarComFiltro(nome, preco, genero);
 
         if (!resultado.isEmpty()) {
             return ResponseEntity.ok(resultado);
@@ -61,49 +50,52 @@ public class JogoController {
     }
 
     @PostMapping("/cadastrar")
-    public ResponseEntity<Jogo> cadastrarJogo(@RequestBody (required = false) Jogo jogo){
-        if(jogo == null){
+    public ResponseEntity<Jogo> cadastrarJogo(@RequestBody(required = false) Jogo jogo) {
+        if (jogo == null) {
             return ResponseEntity.badRequest().build();
         } else {
-            jogos.add(jogo);
-            return ResponseEntity.ok(jogo);
+            Jogo jogoSalvo = repository.save(jogo);
+            return ResponseEntity.ok(jogoSalvo);
         }
     }
 
     //Pesquisa externa para adicionar mais dados para a pesquisa com filtros;
     @PostMapping("/cadastrar-jogos")
     public ResponseEntity<List<Jogo>> criarJogos(@RequestBody List<Jogo> novosJogos) {
-        jogos.addAll(novosJogos);
-        return ResponseEntity.ok(novosJogos);
+        List<Jogo> jogosSalvos = repository.saveAll(novosJogos);
+        return ResponseEntity.ok(jogosSalvos);
     }
     //
 
     @PutMapping("/editar/{id}")
-    public ResponseEntity<Jogo> editarJogo(@PathVariable int id, @RequestBody Jogo jogo){
-        for (int i = 0; i < jogos.size(); i++) {
-            if (jogos.get(i).id == id) {
-                Jogo j = jogos.get(i);
-                j.setNome(jogo.getNome());
-                j.setPreco(jogo.getPreco());
-                j.setGenero(jogo.getGenero());
-                jogos.set(id, j);
+    public ResponseEntity<Jogo> editarJogo(@PathVariable Integer id, @RequestBody Jogo jogo) {
+        Optional<Jogo> jogoEncontrado = repository.findById(id);
 
-                return ResponseEntity.ok(j);
-            }
+        if (jogoEncontrado.isPresent()) {
+            Jogo j = jogoEncontrado.get();
+
+            j.setNome(jogo.getNome());
+            j.setPreco(jogo.getPreco());
+            j.setGenero(jogo.getGenero());
+            Jogo jogoSalvo = repository.save(j);
+
+            return ResponseEntity.ok(jogoSalvo);
+        } else {
+            return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.badRequest().build();
     }
 
     @DeleteMapping("/deletar/{id}")
-    public ResponseEntity deletarJogo(@PathVariable int id) {
-        for (int i = 0; i < jogos.size(); i++) {
-            if (jogos.get(i).id == id) {
-                String nome = jogos.get(i).getNome();
-                jogos.remove(i);
+    public ResponseEntity<String> deletarJogo(@PathVariable int id) {
+        Optional<Jogo> jogoEncontrado = repository.findById(id);
 
-                return ResponseEntity.ok("Jogo " + id + " (" + nome + ") " + " deletado com sucesso");
-            }
+        if (jogoEncontrado.isPresent()) {
+            String nome = jogoEncontrado.get().getNome();
+            repository.deleteById(id);
+
+            return ResponseEntity.ok("Jogo " + id + " (" + nome + ") " + " deletado com sucesso");
+        } else {
+            return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.badRequest().build();
     }
 }
